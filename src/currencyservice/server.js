@@ -13,6 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+require("appdynamics").profile({
+  openTelemetry: {
+    enabled: true,
+    debug: true,
+    collector: {
+      url: 'http://otelcol:4318/v1/traces'
+    }
+  }
+})
 
 const path = require('path');
 const grpc = require('@grpc/grpc-js');

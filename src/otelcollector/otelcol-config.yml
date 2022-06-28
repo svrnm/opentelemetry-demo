@@ -3,19 +3,41 @@ receivers:
     protocols:
       grpc:
       http:
+
 exporters:
   jaeger:
     endpoint: "jaeger:14250"
     tls:
       insecure: true
   logging:
+  otlphttp:
+    endpoint: https://pdx-sls-agent-api.saas.appdynamics.com
+    headers: {"x-api-key": "YOUR API KEY HERE"}
 
 processors:
+  resource:
+    attributes:
+      - key: appdynamics.controller.account
+        action: upsert
+        value: ""
+      - key: appdynamics.controller.host
+        action: upsert
+        value: ".saas.appdynamics.com"
+      - key: appdynamics.controller.port
+        action: upsert
+        value: 443
+      - key: service.namespace
+        action: upsert
+        value: ""
   batch:
+    timeout: 30s
+    send_batch_size: 90
 
 service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [batch]
-      exporters: [logging, jaeger]
+      processors: [resource, batch]
+      exporters: [logging,jaeger,otlphttp]
+
+

@@ -1,0 +1,51 @@
+plugins {
+	id 'org.springframework.boot' version '2.7.0'
+	id 'io.spring.dependency-management' version '1.0.11.RELEASE'
+	id 'java'
+	id 'idea'
+    id 'application'
+}
+
+group = 'hipstershop'
+version = '0.0.1-SNAPSHOT'
+sourceCompatibility = '17'
+
+repositories {
+	mavenCentral()
+    mavenLocal()
+}
+
+ext {
+    speed = project.hasProperty('speed') ? project.getProperty('speed') : false
+    offlineCompile = new File("$buildDir/output/lib")
+}
+
+dependencies {
+	implementation 'org.springframework.boot:spring-boot-starter-webflux'
+	implementation 'org.springframework.boot:spring-boot-starter-web'
+	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+}
+
+tasks.named('test') {
+	useJUnitPlatform()
+}
+
+task downloadRepos(type: Copy) {
+    from configurations.compileClasspath
+    into offlineCompile
+    from configurations.runtimeClasspath
+    into offlineCompile
+}
+
+task uiApplication(type: CreateStartScripts) {
+    mainClass.set('hipstershop.ui.UiApplication')
+    applicationName = 'UiApplication'
+    outputDir = new File(project.buildDir, 'tmp')
+	classpath = startScripts.classpath
+    defaultJvmOpts = ["-javaagent:/usr/src/app/agent/javaagent.jar", "-Dappdynamics.opentelemetry.enabled=true", "-Dotel.traces.exporter=otlp"]
+}
+
+applicationDistribution.into('bin') {
+    from(uiApplication)
+    fileMode = 0755
+}
