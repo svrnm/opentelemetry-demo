@@ -13,6 +13,8 @@ exporters:
   otlphttp:
     endpoint: https://pdx-sls-agent-api.saas.appdynamics.com
     headers: {"x-api-key": "YOUR API KEY HERE"}
+  prometheus:
+    endpoint: "otelcol:9464"
 
 processors:
   resource:
@@ -38,6 +40,8 @@ service:
     traces:
       receivers: [otlp]
       processors: [resource, batch]
-      exporters: [logging,jaeger,otlphttp]
-
-
+      exporters: [logging, jaeger, otlphttp]
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [prometheus, logging]
