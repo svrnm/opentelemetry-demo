@@ -12,6 +12,10 @@ RUN apt-get install -qq -y --ignore-missing \
   libprotobuf-dev                           \
   libcurl4-openssl-dev                      \
   nlohmann-json3-dev                        \
+  libc-ares-dev                             \
+  libre2-dev                                \
+  libprotoc-dev                             \
+  libssl-dev                                \
   cmake
 
 # The following arguments would be passed from docker-compose.yml
@@ -19,9 +23,12 @@ ARG GRPC_VERSION=1.46.0
 ARG OPENTELEMETRY_VERSION=1.5.0
 
 # Install GRPC
-RUN git clone --shallow-submodules --depth 1 --recurse-submodules -b v${GRPC_VERSION} \
+RUN git clone --depth 1 -b v${GRPC_VERSION} \
   https://github.com/grpc/grpc \
   && cd grpc \
+  && git submodule update --init --recommend-shallow third_party/abseil-cpp \
+  && git submodule update --init --recommend-shallow third_party/cares/cares \
+  && git submodule update --init --recommend-shallow third_party/protobuf \
   && mkdir -p cmake/build \
   && cd cmake/build \
   && cmake \
@@ -31,9 +38,15 @@ RUN git clone --shallow-submodules --depth 1 --recurse-submodules -b v${GRPC_VER
     -DgRPC_BUILD_GRPC_NODE_PLUGIN=OFF \
     -DgRPC_BUILD_GRPC_OBJECTIVE_C_PLUGIN=OFF \
     -DgRPC_BUILD_GRPC_PHP_PLUGIN=OFF \
-    -DgRPC_BUILD_GRPC_PHP_PLUGIN=OFF \
+    -DgRPC_BUILD_GRPC_CSHARP_PLUGIN=OFF \
     -DgRPC_BUILD_GRPC_PYTHON_PLUGIN=OFF \
     -DgRPC_BUILD_GRPC_RUBY_PLUGIN=OFF \
+    -DgRPC_SSL_PROVIDER=package \
+    -DgRPC_ZLIB_PROVIDER=package \
+    -DgRPC_RE2_PROVIDER=package \
+    -DgRPC_CARES_PROVIDER=module \
+    -DgRPC_PROTOBUF_PROVIDER=module \
+    -DgRPC_ABSL_PROVIDER=module \
     ../.. \
   && make -j$(nproc || sysctl -n hw.ncpu || echo 1) \
   && make install \
