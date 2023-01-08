@@ -12,9 +12,7 @@ RUN apt-get install -qq -y --ignore-missing \
   libprotobuf-dev                           \
   libcurl4-openssl-dev                      \
   nlohmann-json3-dev                        \
-  libc-ares-dev                             \
   libre2-dev                                \
-  libprotoc-dev                             \
   libssl-dev                                \
   cmake
 
