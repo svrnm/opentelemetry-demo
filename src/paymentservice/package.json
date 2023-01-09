@@ -7,7 +7,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "lint": "semistandard *.js",
-    "start": "node opentelemetry.js"
+    "start": "if [ \"${OTEL_INSTRUMENTATION_DISABLED}\" = true ] ; then node index.js ; else node opentelemetry.js; fi"
   },
   "author": "Jonathan Lui",
   "license": "ISC",

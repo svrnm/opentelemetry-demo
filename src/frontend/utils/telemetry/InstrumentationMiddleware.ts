@@ -33,14 +33,18 @@ const InstrumentationMiddleware = (handler: NextApiHandler): NextApiHandler => {
       span = trace.getSpan(context.active()) as Span;
     }
 
-    try {
-      await runWithSpan(span, async () => handler(request, response));
-    } catch (error) {
-      span.recordException(error as Exception);
-      span.setStatus({ code: SpanStatusCode.ERROR });
-      throw error;
-    } finally {
-      span.end();
+    if(span) {
+      try {
+        await runWithSpan(span, async () => handler(request, response));
+      } catch (error) {
+        span.recordException(error as Exception);
+        span.setStatus({ code: SpanStatusCode.ERROR });
+        throw error;
+      } finally {
+        span.end();
+      }
+    } else {
+      return await handler(request, response)
     }
   };
 };

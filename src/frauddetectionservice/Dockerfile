@@ -19,4 +19,8 @@ ADD https://github.com/open-telemetry/opentelemetry-java-instrumentation/release
 RUN chmod 644 /app/opentelemetry-javaagent.jar
 ENV JAVA_TOOL_OPTIONS=-javaagent:/app/opentelemetry-javaagent.jar
 
-ENTRYPOINT [ "java", "-jar", "frauddetectionservice-1.0-all.jar" ]
+
+COPY ./src/frauddetectionservice/frauddetectionservice.sh .
+RUN chmod +x frauddetectionservice.sh
+
+ENTRYPOINT [ "./frauddetectionservice.sh" ]
