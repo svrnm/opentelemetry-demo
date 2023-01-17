@@ -11,16 +11,25 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+FROM python:3.10-slim as base
 
-FROM python:3.10
+FROM base as builder
+RUN apt-get -qq update \
+    && apt-get install -y --no-install-recommends g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY ./src/recommendationservice/requirements.txt .
+RUN pip install --prefix="/reqs" -r requirements.txt
+
+FROM base
+
+ARG PIP_NO_CACHE_DIR=1
 
 WORKDIR /usr/src/app/
 
 COPY ./src/recommendationservice/ ./
 COPY ./pb/ ./proto/
-
-RUN pip install --upgrade pip
-RUN pip install -r ./requirements.txt
+COPY --from=builder /reqs /usr/local
 
 RUN opentelemetry-bootstrap -a install
 
