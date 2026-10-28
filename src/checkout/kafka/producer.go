@@ -3,11 +3,14 @@
 package kafka
 
 import (
+	"crypto/tls"
 	"fmt"
 	"log/slog"
 	"os"
+	"strings"
 
 	"github.com/IBM/sarama"
+	"github.com/xdg-go/scram"
 )
 
 var (
@@ -53,6 +56,10 @@ func CreateKafkaProducer(brokers []string, logger *slog.Logger) (sarama.AsyncPro
 	// So we can know the partition and offset of messages.
 	saramaConfig.Producer.Return.Successes = true
 
+	if err := configureSecurity(saramaConfig); err != nil {
+		return nil, err
+	}
+
 	producer, err := sarama.NewAsyncProducer(brokers, saramaConfig)
 	if err != nil {
 		return nil, err
@@ -66,4 +73,48 @@ func CreateKafkaProducer(brokers []string, logger *slog.Logger) (sarama.AsyncPro
 		}
 	}()
 	return producer, nil
+}
+
+// configureSecurity applies the optional KAFKA_SECURITY_PROTOCOL, KAFKA_SASL_MECHANISM,
+// KAFKA_SASL_USERNAME and KAFKA_SASL_PASSWORD settings, so the producer can connect to a
+// Kafka cluster that requires TLS and/or SASL. Without them the connection stays plaintext.
+func configureSecurity(saramaConfig *sarama.Config) error {
+	protocol := strings.ToUpper(os.Getenv("KAFKA_SECURITY_PROTOCOL"))
+	switch protocol {
+	case "", "PLAINTEXT":
+		return nil
+	case "SSL", "SASL_PLAINTEXT", "SASL_SSL":
+	default:
+		return fmt.Errorf("unsupported KAFKA_SECURITY_PROTOCOL %q", protocol)
+	}
+
+	if protocol == "SSL" || protocol == "SASL_SSL" {
+		saramaConfig.Net.TLS.Enable = true
+		saramaConfig.Net.TLS.Config = &tls.Config{MinVersion: tls.VersionTLS12}
+	}
+
+	if protocol == "SASL_PLAINTEXT" || protocol == "SASL_SSL" {
+		saramaConfig.Net.SASL.Enable = true
+		saramaConfig.Net.SASL.User = os.Getenv("KAFKA_SASL_USERNAME")
+		saramaConfig.Net.SASL.Password = os.Getenv("KAFKA_SASL_PASSWORD")
+
+		switch mechanism := strings.ToUpper(os.Getenv("KAFKA_SASL_MECHANISM")); mechanism {
+		case "", "PLAIN":
+			saramaConfig.Net.SASL.Mechanism = sarama.SASLTypePlaintext
+		case "SCRAM-SHA-256":
+			saramaConfig.Net.SASL.Mechanism = sarama.SASLTypeSCRAMSHA256
+			saramaConfig.Net.SASL.SCRAMClientGeneratorFunc = func() sarama.SCRAMClient {
+				return &scramClient{HashGeneratorFcn: scram.SHA256}
+			}
+		case "SCRAM-SHA-512":
+			saramaConfig.Net.SASL.Mechanism = sarama.SASLTypeSCRAMSHA512
+			saramaConfig.Net.SASL.SCRAMClientGeneratorFunc = func() sarama.SCRAMClient {
+				return &scramClient{HashGeneratorFcn: scram.SHA512}
+			}
+		default:
+			return fmt.Errorf("unsupported KAFKA_SASL_MECHANISM %q", mechanism)
+		}
+	}
+
+	return nil
 }

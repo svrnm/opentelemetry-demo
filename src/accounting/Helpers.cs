@@ -9,6 +9,9 @@ namespace Accounting
     {
         private static List<string> RelevantPrefixes = ["DOTNET_", "CORECLR_", "OTEL_", "KAFKA_"];
 
+        // Values of these variables are masked when printed, e.g. KAFKA_SASL_PASSWORD.
+        private static List<string> SensitiveKeyParts = ["PASSWORD"];
+
         public static IEnumerable<DictionaryEntry> FilterRelevant(this IDictionary envs)
         {
             foreach (DictionaryEntry env in envs)
@@ -27,7 +30,9 @@ namespace Accounting
         {
             foreach (var env in envs.OrderBy(x => x.Key))
             {
-                Console.WriteLine(env);
+                var key = env.Key.ToString() ?? string.Empty;
+                var sensitive = SensitiveKeyParts.Any(part => key.Contains(part, StringComparison.InvariantCultureIgnoreCase));
+                Console.WriteLine(sensitive ? new DictionaryEntry(env.Key, "***") : env);
             }
         }
     }

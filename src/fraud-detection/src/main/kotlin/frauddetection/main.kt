@@ -7,6 +7,9 @@ package frauddetection
 
 import org.apache.kafka.clients.consumer.ConsumerConfig.*
 import org.apache.kafka.clients.consumer.KafkaConsumer
+import org.apache.kafka.clients.CommonClientConfigs.SECURITY_PROTOCOL_CONFIG
+import org.apache.kafka.common.config.SaslConfigs.SASL_JAAS_CONFIG
+import org.apache.kafka.common.config.SaslConfigs.SASL_MECHANISM
 import org.apache.kafka.common.serialization.ByteArrayDeserializer
 import org.apache.kafka.common.serialization.StringDeserializer
 import org.apache.logging.log4j.LogManager
@@ -53,6 +56,22 @@ fun main() {
         exitProcess(1)
     }
     props[BOOTSTRAP_SERVERS_CONFIG] = bootstrapServers
+    // Optional TLS/SASL settings for Kafka clusters that require them. Without them the connection stays plaintext.
+    System.getenv("KAFKA_SECURITY_PROTOCOL")?.takeIf { it.isNotEmpty() }?.let { securityProtocol ->
+        props[SECURITY_PROTOCOL_CONFIG] = securityProtocol
+        if (securityProtocol.startsWith("SASL_", ignoreCase = true)) {
+            val mechanism = System.getenv("KAFKA_SASL_MECHANISM")?.takeIf { it.isNotEmpty() } ?: "PLAIN"
+            val loginModule = if (mechanism.startsWith("SCRAM-", ignoreCase = true)) {
+                "org.apache.kafka.common.security.scram.ScramLoginModule"
+            } else {
+                "org.apache.kafka.common.security.plain.PlainLoginModule"
+            }
+            props[SASL_MECHANISM] = mechanism
+            props[SASL_JAAS_CONFIG] = "$loginModule required " +
+                "username=\"${jaasEscape(System.getenv("KAFKA_SASL_USERNAME").orEmpty())}\" " +
+                "password=\"${jaasEscape(System.getenv("KAFKA_SASL_PASSWORD").orEmpty())}\";"
+        }
+    }
     val consumer = KafkaConsumer<String, ByteArray>(props).apply {
         subscribe(listOf(topic))
     }
@@ -96,6 +115,11 @@ fun main() {
         }
     }
 }
+
+/**
+* Escapes a value for use inside a double-quoted JAAS configuration option.
+*/
+fun jaasEscape(value: String): String = value.replace("\\", "\\\\").replace("\"", "\\\"")
 
 /**
 * Retrieves the status of a feature flag from the Feature Flag service.

@@ -150,6 +150,19 @@ internal class Consumer : BackgroundService
             EnableAutoCommit = true
         };
 
+        // Optional TLS/SASL settings for Kafka clusters that require them. Without them the connection stays plaintext.
+        var securityProtocol = Environment.GetEnvironmentVariable("KAFKA_SECURITY_PROTOCOL");
+        if (!string.IsNullOrEmpty(securityProtocol))
+        {
+            conf.Set("security.protocol", securityProtocol);
+            if (securityProtocol.StartsWith("SASL_", StringComparison.OrdinalIgnoreCase))
+            {
+                conf.Set("sasl.mechanism", Environment.GetEnvironmentVariable("KAFKA_SASL_MECHANISM") is { Length: > 0 } mechanism ? mechanism : "PLAIN");
+                conf.SaslUsername = Environment.GetEnvironmentVariable("KAFKA_SASL_USERNAME");
+                conf.SaslPassword = Environment.GetEnvironmentVariable("KAFKA_SASL_PASSWORD");
+            }
+        }
+
         return new ConsumerBuilder<string, byte[]>(conf)
             .Build();
     }
