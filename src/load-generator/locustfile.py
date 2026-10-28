@@ -24,15 +24,12 @@ from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
-from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.instrumentation.jinja2 import Jinja2Instrumentor
 from opentelemetry.instrumentation.requests import RequestsInstrumentor
 from opentelemetry.instrumentation.system_metrics import SystemMetricsInstrumentor
 from opentelemetry.instrumentation.urllib3 import URLLib3Instrumentor
 from opentelemetry.instrumentation.logging import LoggingInstrumentor
 from opentelemetry._logs import set_logger_provider
-from opentelemetry.exporter.otlp.proto.grpc._log_exporter import OTLPLogExporter
 from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
 from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
 from opentelemetry.sdk.resources import Resource
@@ -43,7 +40,22 @@ from openfeature.contrib.hook.opentelemetry import TracingHook
 
 from playwright.async_api import Route, Request
 
-metric_exporter = OTLPMetricExporter(insecure=True)
+# Pick the OTLP exporters from OTEL_EXPORTER_OTLP_PROTOCOL (gRPC by default).
+otlp_protocol = os.environ.get("OTEL_EXPORTER_OTLP_PROTOCOL", "grpc")
+if otlp_protocol == "grpc":
+    from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
+    from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+    from opentelemetry.exporter.otlp.proto.grpc._log_exporter import OTLPLogExporter
+    otlp_exporter_args = {"insecure": True}
+elif otlp_protocol == "http/protobuf":
+    from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
+    from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+    from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
+    otlp_exporter_args = {}
+else:
+    raise ValueError(f"Unsupported OTEL_EXPORTER_OTLP_PROTOCOL: {otlp_protocol!r} (use 'grpc' or 'http/protobuf')")
+
+metric_exporter = OTLPMetricExporter(**otlp_exporter_args)
 meter_provider = MeterProvider(
     [PeriodicExportingMetricReader(metric_exporter)]
 )
@@ -54,7 +66,7 @@ tracer_provider = TracerProvider(meter_provider=meter_provider)
 trace.set_tracer_provider(tracer_provider)
 tracer_provider.add_span_processor(
     BatchSpanProcessor(
-        OTLPSpanExporter(insecure=True),
+        OTLPSpanExporter(**otlp_exporter_args),
         meter_provider=meter_provider,
     )
 )
@@ -64,7 +76,7 @@ logger_provider = LoggerProvider(meter_provider=meter_provider)
 set_logger_provider(logger_provider)
 
 # Set up log exporter and processor
-log_exporter = OTLPLogExporter(insecure=True)
+log_exporter = OTLPLogExporter(**otlp_exporter_args)
 logger_provider.add_log_record_processor(
     BatchLogRecordProcessor(
         log_exporter,
