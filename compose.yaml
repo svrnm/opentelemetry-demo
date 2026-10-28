@@ -448,6 +448,7 @@ services:
       - OTEL_EXPORTER_OTLP_METRICS_DEFAULT_HISTOGRAM_AGGREGATION
       - OTEL_RESOURCE_ATTRIBUTES=${OTEL_RESOURCE_ATTRIBUTES},service.criticality=low
       - OTEL_SERVICE_NAME=load-generator
+      - OTEL_CONFIG_FILE=/otel-config.yml
       - OTEL_PYTHON_SDK_INTERNAL_METRICS_ENABLED=true
       - PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
       - LOCUST_WEB_HOST=0.0.0.0
@@ -465,6 +466,8 @@ services:
         condition: service_healthy
       flagd:
         condition: service_started
+    volumes:
+      - ./otel-config.yml:/otel-config.yml
     logging: *logging
 
   # Payment service

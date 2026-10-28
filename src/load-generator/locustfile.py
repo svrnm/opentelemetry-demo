@@ -19,23 +19,12 @@ grpc.experimental.gevent.gevent_loaded = True
 
 from opentelemetry import context, baggage, trace
 from opentelemetry.context import Context
-from opentelemetry.metrics import set_meter_provider
-from opentelemetry.sdk.metrics import MeterProvider
-from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
-from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.configuration import configure_sdk, load_config_file
 from opentelemetry.instrumentation.jinja2 import Jinja2Instrumentor
 from opentelemetry.instrumentation.requests import RequestsInstrumentor
 from opentelemetry.instrumentation.system_metrics import SystemMetricsInstrumentor
 from opentelemetry.instrumentation.urllib3 import URLLib3Instrumentor
 from opentelemetry.instrumentation.logging import LoggingInstrumentor
-from opentelemetry._logs import set_logger_provider
-from opentelemetry.exporter.otlp.proto.grpc._log_exporter import OTLPLogExporter
-from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
-from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
-from opentelemetry.sdk.resources import Resource
 
 from openfeature import api
 from openfeature.contrib.provider.ofrep import OFREPProvider
@@ -43,42 +32,14 @@ from openfeature.contrib.hook.opentelemetry import TracingHook
 
 from playwright.async_api import Route, Request
 
-metric_exporter = OTLPMetricExporter(insecure=True)
-meter_provider = MeterProvider(
-    [PeriodicExportingMetricReader(metric_exporter)]
-)
-set_meter_provider(meter_provider)
+# Configure the SDK (providers, processors, exporters, resource) from the
+# declarative configuration file referenced by OTEL_CONFIG_FILE.
+otel_config_file = os.environ.get("OTEL_CONFIG_FILE")
+if not otel_config_file:
+    raise RuntimeError("OTEL_CONFIG_FILE must point to an OpenTelemetry declarative configuration file")
+configure_sdk(load_config_file(otel_config_file))
 
-# Configure tracer provider first (needed for trace context in logs)
-tracer_provider = TracerProvider(meter_provider=meter_provider)
-trace.set_tracer_provider(tracer_provider)
-tracer_provider.add_span_processor(
-    BatchSpanProcessor(
-        OTLPSpanExporter(insecure=True),
-        meter_provider=meter_provider,
-    )
-)
-
-# Configure logger provider with the same resource
-logger_provider = LoggerProvider(meter_provider=meter_provider)
-set_logger_provider(logger_provider)
-
-# Set up log exporter and processor
-log_exporter = OTLPLogExporter(insecure=True)
-logger_provider.add_log_record_processor(
-    BatchLogRecordProcessor(
-        log_exporter,
-        meter_provider=meter_provider,
-    )
-)
-
-# Create logging handler that will include trace context
-handler = LoggingHandler(level=logging.INFO, logger_provider=logger_provider)
-
-# Configure root logger
-root_logger = logging.getLogger()
-root_logger.addHandler(handler)
-root_logger.setLevel(logging.INFO)
+logging.getLogger().setLevel(logging.INFO)
 
 # Instrument logging to automatically inject trace context
 LoggingInstrumentor().instrument(set_logging_format=True)
